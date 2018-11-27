@@ -79,21 +79,17 @@ namespace RSAAuth.Utils
             }
         }
 
-        internal static string DecryptString(string str)
+        internal static string Decrypt(string str, Guid? userId = null)
         {
             try
             {
-                byte[] decryptedData;
-                //Create a new instance of RSACryptoServiceProvider.
                 using (var rsa = new RSACryptoServiceProvider())
                 {
-                    //Import the RSA Key information. This needs
-                    //to include the private key information.
-                    RSA.ImportParameters(RSAKeyInfo); 
+                    rsa.ImportParameters(GetRsaParameters(true, userId));
                     var data = Encoding.UTF8.GetBytes(str);
-                    decryptedData = rsa.Decrypt(data, false);
+                    var decryptedData = rsa.Decrypt(data, false);
+                    return Encoding.UTF8.GetString(decryptedData);
                 }
-                return Encoding.UTF8.GetString(decryptedData);
             }
             catch (CryptographicException e)
             {
@@ -102,15 +98,40 @@ namespace RSAAuth.Utils
             }
         }
 
-        private static void GetRsaParameters(Guid? userId = null)
+        internal static string Encrypt(string str, Guid? userId = null)
+        {
+            try
+            {
+                using (var rsa = new RSACryptoServiceProvider())
+                {
+                    rsa.ImportParameters(GetRsaParameters(false, userId));
+                    var data = Encoding.UTF8.GetBytes(str);
+                    var encryptedData = rsa.Encrypt(data, false);
+                    Logger.Info(Encoding.UTF8.GetString(encryptedData));
+                    Logger.Info(Decrypt(Encoding.UTF8.GetString(encryptedData)));
+                    return Encoding.UTF8.GetString(encryptedData);
+                }
+            }
+            catch (CryptographicException e)
+            {
+                Logger.Error(e);
+                return null;
+            }
+        }
+
+        private static RSAParameters GetRsaParameters(bool isPrivate, Guid? userId = null, bool isClientPublic = false)
         {
             try
             {
                 using (var context = new AuthContext())
                 {
-                    var type = userId == null ? RsaRecordType.GlobalPrivateKey : RsaRecordType.UserPrivateKey;
-                    var record = userId == null 
-                        ? context.RsaRecord.FirstOrDefault(p => p.Type == type) 
+                    var type = isClientPublic
+                        ? RsaRecordType.ClientPublicKey
+                        : userId == null
+                            ? isPrivate ? RsaRecordType.GlobalPrivateKey : RsaRecordType.GlobalPublicKey
+                            : isPrivate ? RsaRecordType.UserPrivateKey : RsaRecordType.UserPublicKey;
+                    var record = userId == null
+                        ? context.RsaRecord.FirstOrDefault(p => p.Type == type)
                         : context.RsaRecord.FirstOrDefault(p => p.Type == type && p.User == userId);
                     if (record != null)
                     {
@@ -125,7 +146,11 @@ namespace RSAAuth.Utils
                             InverseQ = record.InverseQ != null ? Convert.FromBase64String(record.InverseQ) : null,
                             D = record.D != null ? Convert.FromBase64String(record.D) : null
                         };
-
+                        return parameters;
+                    }
+                    else
+                    {
+                        throw new Exception("Cannot Find RSA Record.");
                     }
                 }
             }

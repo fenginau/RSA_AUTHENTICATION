@@ -22,11 +22,22 @@ namespace RSAAuth.Controllers
         }
 
         // GET user public RSA key
-        [HttpGet("{id}")]
+        [HttpGet("[action]")]
         public ActionResult<string> GetUserPublicKey(int id)
         {
             return Ok(RsaUtil.GetRsaKey(false));
         }
         
+        [HttpGet("[action]")]
+        public ActionResult<string> Encrypt(string str)
+        {
+            return Ok(RsaUtil.Encrypt(str));
+        }
+
+        [HttpGet("[action]")]
+        public ActionResult<string> Decrypt(string str)
+        {
+            return Ok(RsaUtil.Decrypt(str));
+        }
     }
 }
