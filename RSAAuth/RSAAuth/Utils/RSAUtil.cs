@@ -79,14 +79,14 @@ namespace RSAAuth.Utils
             }
         }
 
-        internal static string Decrypt(string str, Guid? userId = null)
+        internal static string Decrypt(string base64Str, Guid? userId = null)
         {
             try
             {
                 using (var rsa = new RSACryptoServiceProvider())
                 {
                     rsa.ImportParameters(GetRsaParameters(true, userId));
-                    var data = Encoding.UTF8.GetBytes(str);
+                    var data = Convert.FromBase64String(base64Str);
                     var decryptedData = rsa.Decrypt(data, false);
                     return Encoding.UTF8.GetString(decryptedData);
                 }
@@ -98,18 +98,17 @@ namespace RSAAuth.Utils
             }
         }
 
-        internal static string Encrypt(string str, Guid? userId = null)
+        internal static string Encrypt(string rawStr, Guid? userId = null)
         {
             try
             {
-                using (var rsa = new RSACryptoServiceProvider())
+                using (var rsa = new RSACryptoServiceProvider(2048))
                 {
-                    rsa.ImportParameters(GetRsaParameters(false, userId));
-                    var data = Encoding.UTF8.GetBytes(str);
+                    var rsaParameters = GetRsaParameters(false, userId);
+                    rsa.ImportParameters(rsaParameters);
+                    var data = Encoding.UTF8.GetBytes(rawStr);
                     var encryptedData = rsa.Encrypt(data, false);
-                    Logger.Info(Encoding.UTF8.GetString(encryptedData));
-                    Logger.Info(Decrypt(Encoding.UTF8.GetString(encryptedData)));
-                    return Encoding.UTF8.GetString(encryptedData);
+                    return Convert.ToBase64String(encryptedData);
                 }
             }
             catch (CryptographicException e)
