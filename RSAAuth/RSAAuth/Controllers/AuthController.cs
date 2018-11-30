@@ -39,5 +39,12 @@ namespace RSAAuth.Controllers
         {
             return Ok(RsaUtil.Decrypt(str));
         }
+
+        [HttpPost("[action]")]
+        public ActionResult<string> SaveClientKey(string str)
+        {
+            RsaUtil.SaveClientKey(str);
+            return Ok();
+        }
     }
 }
