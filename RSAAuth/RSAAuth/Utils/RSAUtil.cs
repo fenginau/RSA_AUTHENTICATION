@@ -25,6 +25,17 @@ namespace RSAAuth.Utils
                 {
                     SaveRsaRecord(rsa, true);
                     SaveRsaRecord(rsa, false);
+
+                    // write RSA parameters to files as PEM
+                    using (var writer = File.CreateText("privatekey.txt"))
+                    {
+                        ExportPrivateKey(rsa.ExportParameters(true), writer);
+                    }
+                    using (var writer = File.CreateText("publickey.txt"))
+                    {
+                        ExportPublicKey(rsa.ExportParameters(false), writer);
+                    }
+
                 }
                 catch (Exception e)
                 {
@@ -76,8 +87,21 @@ namespace RSAAuth.Utils
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                throw;
+                Logger.Error(e);
+                throw new Exception("Failed to get the RSA key.");
+            }
+        }
+
+        internal static string GetRsaKeyString(bool isPrivate, Guid? userId = null, bool isClientPublic = false)
+        {
+            try
+            {
+                return ExportPublicKey(GetRsaParameters(isPrivate, userId, isClientPublic));
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                throw new Exception("Failed to get the RSA string key.");
             }
         }
 
@@ -91,10 +115,6 @@ namespace RSAAuth.Utils
                     rsa.ImportParameters(rsaParameters);
                     var data = Convert.FromBase64String(base64Str);
                     var decryptedData = rsa.Decrypt(data, false);
-                    using (var writer = File.CreateText("privatekey.txt"))
-                    {
-                        ExportPrivateKey(rsaParameters, writer);
-                    }
                     return Encoding.UTF8.GetString(decryptedData);
                 }
             }
@@ -105,21 +125,17 @@ namespace RSAAuth.Utils
             }
         }
 
-        internal static string Encrypt(string rawStr, Guid? userId = null)
+        internal static string Encrypt(string rawStr, Guid? userId = null, bool isClientPublic = false)
         {
             try
             {
                 using (var rsa = new RSACryptoServiceProvider(2048))
                 {
-                    var rsaParameters = GetRsaParameters(false, userId);
+                    var rsaParameters = GetRsaParameters(false, userId, isClientPublic);
                     rsa.ImportParameters(rsaParameters);
                     var data = Encoding.UTF8.GetBytes(rawStr);
                     var encryptedData = rsa.Encrypt(data, false);
                     Logger.Info(Convert.ToBase64String(encryptedData));
-                    using (var writer = File.CreateText("publickey.txt"))
-                    {
-                        ExportPublicKey(rsaParameters, writer);
-                    }
                     return Convert.ToBase64String(encryptedData);
                 }
             }
@@ -176,11 +192,24 @@ namespace RSAAuth.Utils
             try
             {
                 var parameters = rsa.ExportParameters(isPrivate);
+                SaveRsaParameters(parameters, isPrivate, userId, isClientPublic);
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                throw new Exception("Failed to save RSA records.");
+            }
+        }
+
+        private static void SaveRsaParameters(RSAParameters parameters, bool isPrivate, Guid? userId = null, bool isClientPublic = false)
+        {
+            try
+            {
                 using (var context = new AuthContext())
                 {
-                    var type = isClientPublic 
-                        ? RsaRecordType.ClientPublicKey 
-                        : userId == null 
+                    var type = isClientPublic
+                        ? RsaRecordType.ClientPublicKey
+                        : userId == null
                             ? isPrivate ? RsaRecordType.GlobalPrivateKey : RsaRecordType.GlobalPublicKey
                             : isPrivate ? RsaRecordType.UserPrivateKey : RsaRecordType.UserPublicKey;
                     var record = userId == null
@@ -220,11 +249,12 @@ namespace RSAAuth.Utils
             }
             catch (Exception e)
             {
-                Logger.Error(e);
+                Logger.Error(e); ;
+                throw new Exception("Failed to save RSA parameters.");
             }
         }
 
-        private static void ExportPrivateKey(RSAParameters parameters, TextWriter outputStream)
+        private static void ExportPrivateKey(RSAParameters parameters, TextWriter outputStream = null)
         {
             using (var stream = new MemoryStream())
             {
@@ -248,20 +278,21 @@ namespace RSAAuth.Utils
                 }
 
                 var base64 = Convert.ToBase64String(stream.GetBuffer(), 0, (int)stream.Length).ToCharArray();
-                outputStream.WriteLine("-----BEGIN RSA PRIVATE KEY-----");
+                outputStream?.WriteLine("-----BEGIN RSA PRIVATE KEY-----");
                 // Output as Base64 with lines chopped at 64 characters
                 for (var i = 0; i < base64.Length; i += 64)
                 {
-                    outputStream.WriteLine(base64, i, Math.Min(64, base64.Length - i));
+                    outputStream?.WriteLine(base64, i, Math.Min(64, base64.Length - i));
                 }
-                outputStream.WriteLine("-----END RSA PRIVATE KEY-----");
+                outputStream?.WriteLine("-----END RSA PRIVATE KEY-----");
             }
         }
 
-        private static void ExportPublicKey(RSAParameters parameters, TextWriter outputStream)
+        private static string ExportPublicKey(RSAParameters parameters, TextWriter outputStream = null)
         {
             using (var stream = new MemoryStream())
             {
+                var outputString = new StringBuilder();
                 var writer = new BinaryWriter(stream);
                 writer.Write((byte)0x30); // SEQUENCE
                 using (var innerStream = new MemoryStream())
@@ -299,16 +330,21 @@ namespace RSAAuth.Utils
                     writer.Write(innerStream.GetBuffer(), 0, length);
                 }
 
-                var base64 = Convert.ToBase64String(stream.GetBuffer(), 0, (int)stream.Length).ToCharArray();
-                outputStream.WriteLine("-----BEGIN PUBLIC KEY-----");
+                var base64 = Convert.ToBase64String(stream.GetBuffer(), 0, (int)stream.Length);
+                outputString.AppendLine("-----BEGIN PUBLIC KEY-----");
+                outputStream?.WriteLine("-----BEGIN PUBLIC KEY-----");
                 for (var i = 0; i < base64.Length; i += 64)
                 {
-                    outputStream.WriteLine(base64, i, Math.Min(64, base64.Length - i));
+                    var subBase64 = base64.Substring(i, Math.Min(64, base64.Length - i));
+                    outputString.AppendLine(subBase64);
+                    outputStream?.WriteLine(subBase64);
                 }
-                outputStream.WriteLine("-----END PUBLIC KEY-----");
+                outputString.AppendLine("-----END PUBLIC KEY-----");
+                outputStream?.WriteLine("-----END PUBLIC KEY-----");
+                return outputString.ToString();
             }
         }
-
+        
         private static void EncodeLength(BinaryWriter stream, int length)
         {
             if (length < 0) throw new ArgumentOutOfRangeException("length", "Length must be non-negative");
@@ -368,19 +404,14 @@ namespace RSAAuth.Utils
             }
         }
 
-        internal static void SaveClientKey(string key)
+        internal static void SaveClientKey(string key, Guid userId)
         {
             try
             {
                 var rx = new Regex(@"-----.*?-----", RegexOptions.Compiled | RegexOptions.IgnoreCase);
                 var keyContent = Regex.Replace(rx.Replace(key, ""), @"\n", "");
-                Logger.Info(keyContent);
                 var rsaParams = DecodeX509PublicKey(Convert.FromBase64String(keyContent));
-                using (var writer = File.CreateText("pk1.txt"))
-                {
-                    ExportPublicKey(rsaParams, writer);
-                }
-
+                SaveRsaParameters(rsaParams, false, userId, true);
             }
             catch (Exception e)
             {
@@ -393,8 +424,8 @@ namespace RSAAuth.Utils
         {
             if (a.Length != b.Length)
                 return false;
-            int i = 0;
-            foreach (byte c in a)
+            var i = 0;
+            foreach (var c in a)
             {
                 if (c != b[i])
                     return false;

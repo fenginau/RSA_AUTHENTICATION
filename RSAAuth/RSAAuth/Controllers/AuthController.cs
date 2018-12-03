@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using RSAAuth.Models;
 using RSAAuth.Utils;
 
 namespace RSAAuth.Controllers
@@ -18,16 +18,61 @@ namespace RSAAuth.Controllers
         [HttpGet("[action]")]
         public ActionResult<string> GetGlobalPublicKey()
         {
-            return Ok(RsaUtil.GetRsaKey(false));
+            return Ok(RsaUtil.GetRsaKeyString(false));
         }
 
         // GET user public RSA key
         [HttpGet("[action]")]
-        public ActionResult<string> GetUserPublicKey(int id)
+        public ActionResult<string> GetUserPublicKey()
         {
-            return Ok(RsaUtil.GetRsaKey(false));
+            try
+            {
+                return Ok(RsaUtil.GetRsaKey(false));
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                return StatusCode(500);
+            }
         }
-        
+
+        [HttpPost("[action]")]
+        public ActionResult<string> RequestSignin([FromBody] SigninRequestModel signinRequest)
+        {
+            try
+            {
+                return Ok(UserUtil.ProcessSigninRequest(signinRequest));
+            }
+            catch (KeyNotFoundException ke)
+            {
+                return NotFound(ke.Message);
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                return StatusCode(500, e.Message);
+            }
+        }
+
+        [HttpPost("[action]")]
+        public ActionResult<string> Signin([FromBody] SigninRequestModel signinRequest)
+        {
+            try
+            {
+                return Ok(UserUtil.Signin(signinRequest));
+            }
+            catch (KeyNotFoundException ke)
+            {
+                return NotFound(ke.Message);
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                return StatusCode(500, e.Message);
+            }
+        }
+
+        // test only
         [HttpGet("[action]")]
         public ActionResult<string> Encrypt(string str)
         {
@@ -40,11 +85,11 @@ namespace RSAAuth.Controllers
             return Ok(RsaUtil.Decrypt(str));
         }
 
-        [HttpPost("[action]")]
-        public ActionResult<string> SaveClientKey(string str)
+        [HttpGet("[action]"), Authorize(Roles = "user,admin")]
+        public ActionResult<string> GetTest()
         {
-            RsaUtil.SaveClientKey(str);
-            return Ok();
+            return Ok(RsaUtil.GetRsaKey(false));
         }
+
     }
 }

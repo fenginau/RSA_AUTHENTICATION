@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>JavaScript RSA Encryption</title>
+    <script src="https://code.jquery.com/jquery-1.8.3.min.js"></script>
+    <script src="./jsencrypt.min.js"></script>
+    <script type="text/javascript">
+        function get(url, callback) {
+            $.ajax({
+                type: "GET",
+                url: url,
+                success: function (result, status, xhr) {
+                    callback(result);
+                },
+                error: function (xhr, status, err) {
+                    console.log('Failed.');
+                }
+            });
+        }
+
+        function post(url, data, callback) {
+            console.log(data);
+            $.ajax({
+                type: "POST",
+                data: JSON.stringify(data),
+                url: url,
+                contentType: "application/json",
+                success: function (result, status, xhr) {
+                    callback(result);
+                },
+                error: function (xhr, status, err) {
+                    console.log('Failed.');
+                }
+            });
+        }
+
+        function getRsaPublicKey() {
+            get('https://careintheclouds.com.au/auth/api/auth/getglobalpublickey', key => {
+                console.log(key);
+                localStorage.setItem('ServerRSAPublicKey', key);
+            });
+        }
+
+        function createUser(user) {
+            post('https://careintheclouds.com.au/auth/api/user/createuser', user, result => {
+                console.log('user created');
+            });
+        }
+
+        function encryptString(str) {
+            var encrypt = new JSEncrypt();
+            encrypt.setPublicKey(localStorage.getItem('ServerRSAPublicKey'));
+            return encrypt.encrypt(str);
+        }
+
+        // Call this code when the page is done loading.
+        $(function () {
+            getRsaPublicKey();
+            $('#register').click(function () {
+                if ($('#username').val() == '' || $('#password').val() == '')
+                    return;
+
+
+                var user = {
+                    userName: encryptString($('#username').val()),
+                    password: encryptString($('#password').val())
+                };
+                createUser(user);
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <label for="username">user name</label>
+    <br/>
+    <input id="username" type="text" placeholder="enter username" />
+    <br/>
+    <label for="password">password</label>
+    <br/>
+    <input id="password" type="text" placeholder="enter password" />
+    <br/>
+    <input id="register" type="button" value="Register" />
+    <br/>
+</body>
+
+</html>

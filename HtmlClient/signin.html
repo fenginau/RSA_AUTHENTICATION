@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>JavaScript RSA Encryption</title>
+    <script src="https://code.jquery.com/jquery-1.8.3.min.js"></script>
+    <script src="./jsencrypt.min.js"></script>
+    <script src="./crypto-js/core.js"></script>
+    <script src="./crypto-js/enc-base64.js"></script>
+    <script src="./crypto-js/sha256.js"></script>
+
+    <script type="text/javascript">
+        function get(url, callback, errorCallBack) {
+            $.ajax({
+                type: "GET",
+                url: url,
+                success: function (result, status, xhr) {
+                    callback(result);
+                },
+                error: function (xhr, status, err) {
+                    errorCallBack(err);
+                    console.log('Failed.');
+                }
+            });
+        }
+
+        function post(url, data, callback, errorCallBack) {
+            console.log(data);
+            $.ajax({
+                type: "POST",
+                data: JSON.stringify(data),
+                url: url,
+                contentType: "application/json",
+                success: function (result, status, xhr) {
+                    callback(result);
+                },
+                error: function (xhr, status, err) {
+                    errorCallBack(err);
+                    //console.log('Failed.');
+                }
+            });
+        }
+
+        function getRsaPublicKey() {
+            get('https://careintheclouds.com.au/auth/api/auth/getglobalpublickey', key => {
+                console.log(key);
+                localStorage.setItem('ServerRSAPublicKey', key);
+            });
+        }
+
+        function encryptString(str) {
+            var encrypt = new JSEncrypt();
+            encrypt.setPublicKey(localStorage.getItem('ServerRSAPublicKey'));
+            return encrypt.encrypt(str);
+        }
+
+        function decryptString(str) {
+            var decrypt = new JSEncrypt();
+            decrypt.setPrivateKey(localStorage.getItem('ClientRSAPrivateKey'));
+            return decrypt.decrypt(str);
+        }
+
+        function requireSignin() {
+            var encrypt = new JSEncrypt({ default_key_size: 2048 });
+            var publicKey = encrypt.getPublicKey();
+            var privateKey = encrypt.getPrivateKey();
+            localStorage.setItem('ClientRSAPublicKey', publicKey);
+            localStorage.setItem('ClientRSAPrivateKey', privateKey);
+
+            var encrypt = new JSEncrypt();
+            encrypt.setPublicKey(localStorage.getItem('ServerRSAPublicKey'));
+            var signinRequest = {
+                userName: encryptString($('#username').val()),
+                clientRsaPublicKey: localStorage.getItem('ClientRSAPublicKey')
+            }
+
+            post('https://careintheclouds.com.au/auth/api/auth/requestsignin', signinRequest, result => {
+                console.log(result);
+                localStorage.setItem('UserRSAPublicKey', result.userRsaPublicKey);
+                localStorage.setItem('UserSalt', decryptString(result.salt));
+            }, err => {
+                $('#unerror').show();
+                console.log(err);
+            });
+        }
+
+        // Call this code when the page is done loading.
+        $(function () {
+            getRsaPublicKey();
+
+            $('#signin').click(function () {
+                if ($('#username').val() == '' || $('#password').val() == '')
+                    return;
+                
+
+                var password = CryptoJS.SHA256($('#password').val() + localStorage.getItem('UserSalt')).toString(CryptoJS.enc.Base64);
+                var signinRequest = {
+                    userName: encryptString($('#username').val()),
+                    password: encryptString(password)
+                };
+
+                
+            });
+
+            $('#username').blur(function () {
+                if ($('#username').val() != '') {
+                    requireSignin();
+                    $('#password').prop('disabled', false);
+                }
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <label for="username">user name</label>
+    <br/>
+    <input id="username" type="text" placeholder="enter username" />
+    <span id="unerror" style="display:none">user does not exist</span>
+    <br/>
+    <label for="password">password</label>
+    <br/>
+    <input id="password" type="text" placeholder="enter password" disabled />
+    <br/>
+    <input id="signin" type="button" value="sign in" />
+    <br/>
+</body>
+
+</html>
