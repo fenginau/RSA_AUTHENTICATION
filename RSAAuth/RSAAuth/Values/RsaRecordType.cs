@@ -1,4 +1,4 @@
-﻿namespace RSAAuth.Enums
+﻿namespace RSAAuth.Values
 {
     internal class RsaRecordType
     {

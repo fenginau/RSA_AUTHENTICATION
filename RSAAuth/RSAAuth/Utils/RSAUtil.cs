@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using NLog;
 using RSAAuth.DBContext;
-using RSAAuth.Enums;
+using RSAAuth.Values;
 using RSAAuth.Models;
 
 namespace RSAAuth.Utils
@@ -96,7 +96,9 @@ namespace RSAAuth.Utils
         {
             try
             {
-                return ExportPublicKey(GetRsaParameters(isPrivate, userId, isClientPublic));
+                return isPrivate 
+                    ? ExportPrivateKey(GetRsaParameters(true, userId, isClientPublic)) 
+                    : ExportPublicKey(GetRsaParameters(false, userId, isClientPublic));
             }
             catch (Exception e)
             {
@@ -146,7 +148,7 @@ namespace RSAAuth.Utils
             }
         }
 
-        private static RSAParameters GetRsaParameters(bool isPrivate, Guid? userId = null, bool isClientPublic = false)
+        internal static RSAParameters GetRsaParameters(bool isPrivate, Guid? userId = null, bool isClientPublic = false)
         {
             try
             {
@@ -181,8 +183,9 @@ namespace RSAAuth.Utils
                     }
                 }
             }
-            catch
+            catch (Exception e)
             {
+                Logger.Error(e);
                 throw new Exception("Invalid RSA Record.");
             }
         }
@@ -254,10 +257,11 @@ namespace RSAAuth.Utils
             }
         }
 
-        private static void ExportPrivateKey(RSAParameters parameters, TextWriter outputStream = null)
+        private static string ExportPrivateKey(RSAParameters parameters, TextWriter outputStream = null)
         {
             using (var stream = new MemoryStream())
             {
+                var outputString = new StringBuilder();
                 var writer = new BinaryWriter(stream);
                 writer.Write((byte)0x30); // SEQUENCE
                 using (var innerStream = new MemoryStream())
@@ -277,14 +281,19 @@ namespace RSAAuth.Utils
                     writer.Write(innerStream.GetBuffer(), 0, length);
                 }
 
-                var base64 = Convert.ToBase64String(stream.GetBuffer(), 0, (int)stream.Length).ToCharArray();
+                var base64 = Convert.ToBase64String(stream.GetBuffer(), 0, (int)stream.Length);
                 outputStream?.WriteLine("-----BEGIN RSA PRIVATE KEY-----");
+                outputString.AppendLine("-----BEGIN RSA PRIVATE KEY-----");
                 // Output as Base64 with lines chopped at 64 characters
                 for (var i = 0; i < base64.Length; i += 64)
                 {
-                    outputStream?.WriteLine(base64, i, Math.Min(64, base64.Length - i));
+                    var subBase64 = base64.Substring(i, Math.Min(64, base64.Length - i));
+                    outputString.AppendLine(subBase64);
+                    outputStream?.WriteLine(subBase64);
                 }
                 outputStream?.WriteLine("-----END RSA PRIVATE KEY-----");
+                outputString.AppendLine("-----END RSA PRIVATE KEY-----");
+                return outputString.ToString();
             }
         }
 

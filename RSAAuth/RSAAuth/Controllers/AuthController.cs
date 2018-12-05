@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -18,7 +19,15 @@ namespace RSAAuth.Controllers
         [HttpGet("[action]")]
         public ActionResult<string> GetGlobalPublicKey()
         {
-            return Ok(RsaUtil.GetRsaKeyString(false));
+            try
+            {
+                return Ok(RsaUtil.GetRsaKeyString(false));
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                return StatusCode(500);
+            }
         }
 
         // GET user public RSA key
@@ -59,11 +68,12 @@ namespace RSAAuth.Controllers
         {
             try
             {
-                return Ok(UserUtil.Signin(signinRequest));
-            }
-            catch (KeyNotFoundException ke)
-            {
-                return NotFound(ke.Message);
+                var token = UserUtil.Signin(signinRequest);
+                if (token == string.Empty)
+                {
+                    return Unauthorized();
+                }
+                return Ok(token);
             }
             catch (Exception e)
             {
@@ -85,10 +95,30 @@ namespace RSAAuth.Controllers
             return Ok(RsaUtil.Decrypt(str));
         }
 
+        [HttpGet("[action]")]
+        public ActionResult<string> EncryptAes(string str, string userId)
+        {
+            return Ok(AesUtil.Encrypt(str, Guid.Parse(userId)));
+        }
+
+        [HttpGet("[action]")]
+        public ActionResult<string> DecryptAes(string str, string userId)
+        {
+            return Ok(AesUtil.Decrypt(str, Guid.Parse(userId)));
+        }
+
+
+        [HttpGet("[action]")]
+        public ActionResult<string> GetPrivateUserKey(string id)
+        {
+            return Ok(RsaUtil.GetRsaKeyString(true, Guid.Parse(id)));
+        }
+
+
         [HttpGet("[action]"), Authorize(Roles = "user,admin")]
         public ActionResult<string> GetTest()
         {
-            return Ok(RsaUtil.GetRsaKey(false));
+            return Ok("have access");
         }
 
     }

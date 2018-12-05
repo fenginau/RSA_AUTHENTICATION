@@ -23,6 +23,7 @@ namespace RSAAuth.Utils
                         user.Salt = Guid.NewGuid().ToString();
                         user.Password = Sha256Encrypt(RsaUtil.Decrypt(user.Password), user.Salt);
                         user.UserName = RsaUtil.Decrypt(user.UserName);
+                        user.SymKey = AesUtil.GenerateSymmetricKey();
                         context.User.Add(user);
                         RsaUtil.GenerateUserRsaKeyPair(user.Id);
                         context.SaveChanges();
@@ -31,7 +32,6 @@ namespace RSAAuth.Utils
                     {
                         Logger.Error(e);
                     }
-
                 }
             }
             catch (Exception e)
@@ -74,9 +74,12 @@ namespace RSAAuth.Utils
             {
                 using (var context = new AuthContext())
                 {
+                    var user = context.User.FirstOrDefault(u => u.Id == userId);
+
                     return new UserSecurityKeyModel
                     {
-                        Salt = RsaUtil.Encrypt(context.User.FirstOrDefault(u => u.Id == userId)?.Salt ?? string.Empty, userId, true),
+                        Salt = RsaUtil.Encrypt(user?.Salt ?? string.Empty, userId, true),
+                        UserAesKey = RsaUtil.Encrypt(user?.SymKey ?? string.Empty, userId, true),
                         UserRsaPublicKey = RsaUtil.GetRsaKeyString(false, userId)
                     };
                 }
@@ -90,14 +93,40 @@ namespace RSAAuth.Utils
 
         internal static string Signin(SigninRequestModel signinRequest)
         {
-
-            return "";
+            try
+            {
+                var userId = GetUserIdByUserName(RsaUtil.Decrypt(signinRequest.UserName));
+                return ValidateUser(userId, signinRequest.Password) 
+                    ? AesUtil.Encrypt(AuthUtil.GenerateToken(userId), userId)
+                    : string.Empty;
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                throw new Exception("Failed to validate the user login.");
+            }
         }
 
-        private static bool ValidateUser(SigninRequestModel signinRequest)
+        private static bool ValidateUser(Guid userId, string pwdEncrypted)
         {
-
-            return false;
+            try
+            {
+                using (var context = new AuthContext())
+                {
+                    var pwdHash = RsaUtil.Decrypt(pwdEncrypted, userId);
+                    if (pwdHash == string.Empty)
+                    {
+                        return false;
+                    }
+                    var userPwdHash = context.User.FirstOrDefault(u => u.Id == userId)?.Password ?? string.Empty;
+                    return pwdHash == userPwdHash;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                throw new Exception("Failed to validate the user login.");
+            }
         }
 
         internal static Guid GetUserIdByUserName(string userName)

@@ -6,5 +6,6 @@ namespace RSAAuth.Models
     {
         public string UserRsaPublicKey { get; set; }
         public string Salt { get; set; }
+        public string UserAesKey { get; set; }
     }
 }

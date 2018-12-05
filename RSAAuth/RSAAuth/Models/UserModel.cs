@@ -16,8 +16,8 @@ namespace RSAAuth.Models
         public string Password { get; set; }
         [Column("LOGIN_ATTEMPTS")]
         public int LoginAttempts { get; set; }
-        [Column("TOKEN")]
-        public string Token { get; set; }
+        [Column("SYM_KEY")]
+        public string SymKey { get; set; }
         [Column("SALT")]
         public string Salt { get; set; }
     }
