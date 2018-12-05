@@ -7,6 +7,10 @@
     <script src="./jsencrypt.min.js"></script>
     <script src="./crypto-js/core.js"></script>
     <script src="./crypto-js/enc-base64.js"></script>
+    <script src="./crypto-js/cipher-core.js"></script>
+    <script src="./crypto-js/aes.js"></script>
+    <script src="./crypto-js/mode-ecb.js"></script>
+    <script src="./crypto-js/pad-pkcs7.js"></script>
     <script src="./crypto-js/sha256.js"></script>
 
     <script type="text/javascript">
@@ -18,7 +22,8 @@
                     callback(result);
                 },
                 error: function (xhr, status, err) {
-                    errorCallBack(err);
+                    if (typeof errorCallBack == 'function')
+                        errorCallBack(err);
                     console.log('Failed.');
                 }
             });
@@ -35,7 +40,8 @@
                     callback(result);
                 },
                 error: function (xhr, status, err) {
-                    errorCallBack(err);
+                    if (typeof errorCallBack == 'function')
+                        errorCallBack(err);
                     //console.log('Failed.');
                 }
             });
@@ -48,9 +54,10 @@
             });
         }
 
-        function encryptString(str) {
+        function encryptString(str, isServer) {
             var encrypt = new JSEncrypt();
-            encrypt.setPublicKey(localStorage.getItem('ServerRSAPublicKey'));
+            var key = isServer ? localStorage.getItem('ServerRSAPublicKey') : localStorage.getItem('UserRSAPublicKey');
+            encrypt.setPublicKey(key);
             return encrypt.encrypt(str);
         }
 
@@ -58,6 +65,22 @@
             var decrypt = new JSEncrypt();
             decrypt.setPrivateKey(localStorage.getItem('ClientRSAPrivateKey'));
             return decrypt.decrypt(str);
+        }
+
+        function aesEncrypt(plainText) {
+            var keyPair = localStorage.getItem('UserAesKey').split(':');
+            var key = CryptoJS.enc.Base64.parse(keyPair[0]);
+            var iv = CryptoJS.enc.Base64.parse(keyPair[1]);
+            var encrypted = CryptoJS.AES.encrypt(plainText, key, { iv: iv, mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 });
+            return encrypted.toString();
+        }
+
+        function aesDecrypt(cipherText) {
+            var keyPair = localStorage.getItem('UserAesKey').split(':');
+            var key = CryptoJS.enc.Base64.parse(keyPair[0]);
+            var iv = CryptoJS.enc.Base64.parse(keyPair[1]);
+            var decrypted = CryptoJS.AES.decrypt(cipherText, key, { iv: iv, mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 })
+            return decrypted.toString(CryptoJS.enc.Utf8)
         }
 
         function requireSignin() {
@@ -70,7 +93,7 @@
             var encrypt = new JSEncrypt();
             encrypt.setPublicKey(localStorage.getItem('ServerRSAPublicKey'));
             var signinRequest = {
-                userName: encryptString($('#username').val()),
+                userName: encryptString($('#username').val(), true),
                 clientRsaPublicKey: localStorage.getItem('ClientRSAPublicKey')
             }
 
@@ -78,9 +101,17 @@
                 console.log(result);
                 localStorage.setItem('UserRSAPublicKey', result.userRsaPublicKey);
                 localStorage.setItem('UserSalt', decryptString(result.salt));
+                localStorage.setItem('UserAesKey', decryptString(result.userAesKey));
             }, err => {
                 $('#unerror').show();
                 console.log(err);
+            });
+        }
+
+        function signin(cred) {
+            post('https://careintheclouds.com.au/auth/api/auth/signin', cred, result => {
+                localStorage.setItem('AuthToken', aesDecrypt(result));
+                console.log(localStorage.getItem('AuthToken'));
             });
         }
 
@@ -91,15 +122,14 @@
             $('#signin').click(function () {
                 if ($('#username').val() == '' || $('#password').val() == '')
                     return;
-                
+
 
                 var password = CryptoJS.SHA256($('#password').val() + localStorage.getItem('UserSalt')).toString(CryptoJS.enc.Base64);
                 var signinRequest = {
-                    userName: encryptString($('#username').val()),
-                    password: encryptString(password)
+                    userName: encryptString($('#username').val(), true),
+                    password: encryptString(password, false)
                 };
-
-                
+                signin(signinRequest)
             });
 
             $('#username').blur(function () {
