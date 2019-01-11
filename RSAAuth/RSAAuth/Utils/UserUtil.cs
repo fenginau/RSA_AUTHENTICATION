@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -18,21 +19,24 @@ namespace RSAAuth.Utils
             {
                 using (var context = new AuthContext())
                 {
-                    try
+                    var username = RsaUtil.Decrypt(user.UserName).ToLower();
+                    if (context.User.FirstOrDefault(u => u.UserName == username) != null)
                     {
-                        user.Salt = Guid.NewGuid().ToString();
-                        user.Password = Sha256Encrypt(RsaUtil.Decrypt(user.Password), user.Salt);
-                        user.UserName = RsaUtil.Decrypt(user.UserName);
-                        user.SymKey = AesUtil.GenerateSymmetricKey();
-                        context.User.Add(user);
-                        RsaUtil.GenerateUserRsaKeyPair(user.Id);
-                        context.SaveChanges();
+                        throw new DuplicateNameException("Duplicate user");
                     }
-                    catch (Exception e)
-                    {
-                        Logger.Error(e);
-                    }
+                    user.Salt = Guid.NewGuid().ToString();
+                    user.Password = Sha256Encrypt(RsaUtil.Decrypt(user.Password), user.Salt);
+                    user.UserName = username;
+                    user.Name = RsaUtil.Decrypt(user.Name);
+                    user.SymKey = AesUtil.GenerateSymmetricKey();
+                    context.User.Add(user);
+                    RsaUtil.GenerateUserRsaKeyPair(user.Id);
+                    context.SaveChanges();
                 }
+            }
+            catch (DuplicateNameException de)
+            {
+                throw de;
             }
             catch (Exception e)
             {
@@ -88,6 +92,22 @@ namespace RSAAuth.Utils
             {
                 Logger.Error(e);
                 throw new Exception("Failed to get the user security key.");
+            }
+        }
+
+        internal static bool CheckUserExist(string username)
+        {
+            try
+            {
+                using (var context = new AuthContext())
+                {
+                    return context.User.FirstOrDefault(u => u.UserName == username) != null;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                throw new Exception("Error when checking the user exist.");
             }
         }
 
