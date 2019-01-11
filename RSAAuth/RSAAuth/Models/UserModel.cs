@@ -12,6 +12,8 @@ namespace RSAAuth.Models
         public Guid Id { get; set; }
         [Column("USERNAME")]
         public string UserName { get; set; }
+        [Column("NAME")]
+        public string Name { get; set; }
         [Column("PASSWORD")]
         public string Password { get; set; }
         [Column("LOGIN_ATTEMPTS")]

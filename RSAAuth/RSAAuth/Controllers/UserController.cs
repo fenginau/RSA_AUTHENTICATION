@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +23,25 @@ namespace RSAAuth.Controllers
             {
                 UserUtil.CreateUser(user);
                 return Ok();
+            }
+            catch (DuplicateNameException e)
+            {
+                Logger.Error(e);
+                return UnprocessableEntity("Duplicate");
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                return StatusCode(500);
+            }
+        }
+
+        [HttpGet("[action]")]
+        public ActionResult CheckUserExist(string user)
+        {
+            try
+            {
+                return Ok(UserUtil.CheckUserExist(user));
             }
             catch (Exception e)
             {
