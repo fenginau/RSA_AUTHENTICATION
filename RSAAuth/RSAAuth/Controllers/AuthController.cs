@@ -96,6 +96,12 @@ namespace RSAAuth.Controllers
         }
 
         [HttpGet("[action]")]
+        public ActionResult<string> DecryptUser(string str, Guid user)
+        {
+            return Ok(RsaUtil.Decrypt(str, user));
+        }
+
+        [HttpGet("[action]")]
         public ActionResult<string> EncryptAes(string str, string userId)
         {
             return Ok(AesUtil.Encrypt(str, Guid.Parse(userId)));

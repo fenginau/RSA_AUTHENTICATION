@@ -179,7 +179,20 @@ namespace RSAAuth.Utils
                     }
                     else
                     {
-                        throw new Exception("Cannot Find RSA Record.");
+                        if (type == RsaRecordType.GlobalPrivateKey || type == RsaRecordType.GlobalPublicKey)
+                        {
+                            GenerateGlobalRsaKeyPair();
+                            return GetRsaParameters(isPrivate, userId, isClientPublic);
+                        }
+                        else if (type == RsaRecordType.UserPrivateKey || type == RsaRecordType.UserPublicKey)
+                        {
+                            GenerateUserRsaKeyPair(userId ?? Guid.Empty);
+                            return GetRsaParameters(isPrivate, userId, isClientPublic);
+                        }
+                        else
+                        {
+                            throw new Exception("Cannot Find RSA Record.");
+                        }
                     }
                 }
             }

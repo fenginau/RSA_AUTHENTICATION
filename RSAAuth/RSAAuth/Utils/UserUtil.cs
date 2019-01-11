@@ -22,7 +22,7 @@ namespace RSAAuth.Utils
                     {
                         user.Salt = Guid.NewGuid().ToString();
                         user.Password = Sha256Encrypt(RsaUtil.Decrypt(user.Password), user.Salt);
-                        user.UserName = RsaUtil.Decrypt(user.UserName);
+                        user.UserName = RsaUtil.Decrypt(user.UserName).ToLower();
                         user.SymKey = AesUtil.GenerateSymmetricKey();
                         context.User.Add(user);
                         RsaUtil.GenerateUserRsaKeyPair(user.Id);
@@ -45,7 +45,7 @@ namespace RSAAuth.Utils
         {
             try
             {
-                var userName = RsaUtil.Decrypt(signinRequest.UserName);
+                var userName = RsaUtil.Decrypt(signinRequest.UserName).ToLower();
                 // get the user id
                 var userId = GetUserIdByUserName(userName);
                 if (userId == Guid.Empty)
@@ -95,7 +95,7 @@ namespace RSAAuth.Utils
         {
             try
             {
-                var userId = GetUserIdByUserName(RsaUtil.Decrypt(signinRequest.UserName));
+                var userId = GetUserIdByUserName(RsaUtil.Decrypt(signinRequest.UserName).ToLower());
                 return ValidateUser(userId, signinRequest.Password) 
                     ? AesUtil.Encrypt(AuthUtil.GenerateToken(userId), userId)
                     : string.Empty;
